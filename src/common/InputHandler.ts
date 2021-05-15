@@ -309,7 +309,7 @@ export class InputHandler extends Disposable implements IInputHandler {
      * print handler
      */
     this._parser.setPrintHandler((data, start, end) => this.print(data, start, end));
-    this._parser.setHTMLHandler(html => this.html(html));
+    this._parser.setHTMLHandler((height, html) => this.html(height, html));
 
     /**
      * CSI handler
@@ -720,13 +720,19 @@ export class InputHandler extends Disposable implements IInputHandler {
     this._dirtyRowService.markDirty(buffer.y);
   }
 
-  public html(html: string): void {
+  public html(height: number, html: string): void {
     const buffer = this._bufferService.buffer;
     this._dirtyRowService.markDirty(buffer.y);
-    this._bufferService.buffer.htmls.push(new HTMLBlock(buffer.x, buffer.y + buffer.ybase, html));
+    const marker = buffer.addMarker(buffer.y);
+    const block = new HTMLBlock(buffer.x, buffer.y + buffer.ybase, height, html);
+    buffer.htmls.push(block);
+    marker.onDispose(() => {
+      block.dispose();
+      buffer.htmls.splice(buffer.htmls.indexOf(block), 1);
+    });
     this._dirtyRowService.markDirty(buffer.y);
     buffer.x = 0;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < height - 1; i++) {
       this.lineFeed();
     }
   }
@@ -1231,6 +1237,10 @@ export class InputHandler extends Disposable implements IInputHandler {
    */
   private _resetBufferLine(y: number): void {
     const line = this._bufferService.buffer.lines.get(this._bufferService.buffer.ybase + y)!;
+    for (const html of this._bufferService.buffer.htmls.filter(x => x.y === y)) {
+      html.dispose();
+      this._bufferService.buffer.htmls.splice(this._bufferService.buffer.htmls.indexOf(html), 1);
+    }
     line.fill(this._bufferService.buffer.getNullCell(this._eraseAttrData()));
     line.isWrapped = false;
   }
@@ -1292,6 +1302,12 @@ export class InputHandler extends Disposable implements IInputHandler {
         while (j--) {
           this._resetBufferLine(j);
         }
+        // this is buggy, just kill all htmls
+        for (const html of this._bufferService.buffer.htmls) {
+          html.dispose();
+        }
+        this._bufferService.buffer.htmls.length = 0;
+
         this._dirtyRowService.markDirty(0);
         break;
       case 3:
@@ -1394,6 +1410,7 @@ export class InputHandler extends Disposable implements IInputHandler {
    * DL has no effect if the cursor is outside the scroll margins.
    */
   public deleteLines(params: IParams): boolean {
+    console.log('deleteLines', params);
     this._restrictCursor();
     let param = params.params[0] || 1;
 
@@ -3061,6 +3078,7 @@ export class InputHandler extends Disposable implements IInputHandler {
   }
 
   public reset(): void {
+    console.log('other reset\n');
     this._curAttrData = DEFAULT_ATTR_DATA.clone();
     this._eraseAttrDataInternal = DEFAULT_ATTR_DATA.clone();
   }
