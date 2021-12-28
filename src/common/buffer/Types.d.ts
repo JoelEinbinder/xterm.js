@@ -35,6 +35,8 @@ export interface IBuffer {
   savedCurAttrData: IAttributeData;
   isCursorInViewport: boolean;
   markers: IMarker[];
+  delegatesScrolling: boolean;
+  rows: number;
   translateBufferLineToString(lineIndex: number, trimRight: boolean, startCol?: number, endCol?: number): string;
   getWrappedRangeForLine(y: number): { first: number, last: number };
   nextStop(x?: number): number;
@@ -45,6 +47,7 @@ export interface IBuffer {
   getNullCell(attr?: IAttributeData): ICellData;
   getWhitespaceCell(attr?: IAttributeData): ICellData;
   addMarker(y: number): IMarker;
+  resize(cols: number, rows: number): void;
 }
 
 export interface IBufferSet extends IDisposable {
